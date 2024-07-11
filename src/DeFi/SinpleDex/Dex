@@ -1,1 +1,178 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
+//import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract LiquidityPool is ERC20 {
+    address public tokenA;
+    address public tokenB;
+
+    uint256 public reserveA;  //tokenA代币保存量
+    uint256 public reserveB;  //tokenB代币保存量
+    uint256 public totalLiquidity; //总流动性
+
+    constructor(address _tokenA, address _tokenB) ERC20("HackQuest", "HQ") {
+        tokenA = _tokenA;
+        tokenB = _tokenB;
+    }
+
+    //增加流动性主函数 	
+    function addLiquidity(
+        uint256 _amountADesierd,
+        uint256 _amountBDesierd
+    ) external {
+        if (reserveA == 0 && reserveB == 0) {
+	          //增加流动性 	
+            _addLiquidity(_amountADesierd, _amountBDesierd);
+        } else {
+	          //以tokenA为基准，计算需要添加的tokenB数量	
+            uint256 amountBOptimal = _calculateAmountB_add(_amountADesierd);
+            if (amountBOptimal <= _amountBDesierd) {
+                _addLiquidity(_amountADesierd, amountBOptimal);
+            } 
+            else { //以tokenB为基准，计算需要添加的tokenA数量
+                uint256 amountAOptimal = _calculateAmountA_add(_amountBDesierd);
+                _addLiquidity(amountAOptimal, _amountBDesierd);
+            }
+        }
+    }
+ 
+    //增加流动性具体计算函数
+    function _addLiquidity(uint256 amountA, uint256 amountB) private {
+	      //计算流行性
+        uint256 liquidityTokens = calculateLiquidityTokens(amountA, amountB);
+        _mint(msg.sender, liquidityTokens);
+
+        //更新全局数据
+        reserveA += amountA;
+        reserveB += amountB;
+        totalLiquidity += liquidityTokens;
+
+        //代币转移到合约
+        IERC20(tokenA).transferFrom(msg.sender, address(this), amountA);
+        IERC20(tokenB).transferFrom(msg.sender, address(this), amountB);
+    }	
+
+    //计算出执行数量的tokenA需要对应添加的tokenB数量
+    function _calculateAmountB_add(
+        uint256 _amountADesierd
+    ) internal view returns (uint256) {
+        return (reserveB * _amountADesierd) / reserveA;
+    }
+
+    //计算出执行数量的tokenB需要对应添加的tokenA数量	
+    function _calculateAmountA_add(
+        uint256 _amountBDesierd
+    ) internal view returns (uint256) {
+        return (reserveA * _amountBDesierd) / reserveB;
+    }    
+
+    //计算指定数量的tokenA和tokenB对应的流动性	
+    function calculateLiquidityTokens(
+        uint256 amountA,
+        uint256 amountB
+    ) private view returns (uint256 liquidityTokens) {
+        uint256 liquidityTokens;
+        if (reserveA == 0 && reserveB == 0) {
+            liquidityTokens = sqrt(amountA * amountB);
+        } else if (reserveA > 0 && reserveB > 0) {
+            uint256 liquidityPercentageA = (amountA * totalLiquidity) /
+                reserveA;
+            uint256 liquidityPercentageB = (amountB * totalLiquidity) /
+                reserveB;
+
+            liquidityTokens = (liquidityPercentageA < liquidityPercentageB)
+                ? liquidityPercentageA
+                : liquidityPercentageB;
+        } else {
+            revert("Invalid reserve amounts");
+        }
+
+        return liquidityTokens;
+    }
+
+    //删除流动性并收回对应的tokenA和tokenB 	
+    function removeLiquidity(uint256 liquidityTokens) external {
+        require(balanceOf(msg.sender) >= liquidityTokens,
+            "liquidity not enough"
+        );
+        require(totalLiquidity >= liquidityTokens, "Insufficient liquidity");
+        _burn(msg.sender, liquidityTokens);
+
+	      //计算要减少的流动性对应的tokenA份额
+        uint256 amountA = (liquidityTokens * reserveA) / totalLiquidity;
+
+	      //计算要减少的流动性对应的tokenB份额
+        uint256 amountB = (liquidityTokens * reserveB) / totalLiquidity;
+
+	      //执行转账
+        require(IERC20(tokenA).transfer(msg.sender, amountA),
+            "Transfer of token A failed"
+        );
+
+	      require(IERC20(tokenB).transfer(msg.sender, amountB),
+            "Transfer of token B failed"
+        );
+
+	      //更新相关数据
+        reserveA -= amountA; 
+        reserveB -= amountB; 
+        totalLiquidity -= liquidityTokens;
+    }
+
+    //指定数量的tokenA兑换成tokenB 	
+    function swapFromAToB(uint256 amountA) external {
+        require(IERC20(tokenA).balanceOf(msg.sender) >= amountA);
+
+	      //计算需要的tokenB数量
+        uint256 amountB = calculateAmountB_swap(amountA);
+        require(reserveB >= amountB, "tokenB not enough");
+        
+	      reserveA += amountA;
+        reserveB -= amountB;
+        
+        IERC20(tokenA).transferFrom(msg.sender, address(this), amountA);
+        IERC20(tokenB).transfer(msg.sender, amountB);
+    }
+
+    //计算给定数量的A代币可以应该相应地添加多少数量的B代币
+    function calculateAmountB_swap(uint256 amountA) public view returns (uint256) {
+        require(amountA > 0, "invalid input");
+	      uint256 totalAmountB = (reserveA * reserveB) / (reserveA + amountA);
+	      return reserveB - totalAmountB;
+    }	
+
+    //指定数量的tokenB兑换成tokenA	
+    function swapFromBToA(uint256 amountB) external {
+        require(IERC20(tokenB).balanceOf(msg.sender) >= amountB);
+
+        //计算需要的tokenA数量 
+        uint256 amountA = calculateAmountA_swap(amountB);
+        require(reserveA >= amountA, "tokenA not enough");
+
+        reserveB += amountB;
+        reserveA -= amountA;
+
+        IERC20(tokenB).transferFrom(msg.sender, address(this), amountB);
+        IERC20(tokenA).transfer(msg.sender, amountA);
+    }
+
+    //计算给定数量的B代币可以应该相应地添加多少数量的A代币
+    function calculateAmountA_swap(uint256 amountB) public view returns (uint256) {
+	      require(amountB > 0, "invalid input");
+	      uint256 totalAmountA = (reserveA * reserveB) / (reserveB + amountB);
+	      return reserveA - totalAmountA;
+    }
+    
+    //开平方计算
+    function sqrt(uint256 x) private pure returns (uint256 y) {
+        // Calculate the square root of a number (rounded down)
+        uint256 z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+    }
+}
