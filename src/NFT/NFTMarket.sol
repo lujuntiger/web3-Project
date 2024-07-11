@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+// NFT合约
 contract NFT {
     // 定义 Token 结构体，用于存储 NFT 信息
     struct Token {
@@ -130,6 +131,7 @@ contract NFT {
     }
 }
 
+// NFT市场，可以买卖NFT
 contract NFTMarketplace {
     struct Order {
         uint256 tokenId;
