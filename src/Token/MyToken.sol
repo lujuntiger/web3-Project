@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-//import "openzeppelin-contracts/contracts-upgradeable/utils/AddressUpgradeable.sol";
+//import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
 开发的token包含如下功能:
