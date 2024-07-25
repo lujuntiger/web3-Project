@@ -41,9 +41,7 @@ contract StakingRewards is ReentrancyGuard, Pausable {
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
-    event RewardsDurationUpdated(uint256 newDuration);
-    event Recovered(address token, uint256 amount);
-
+    
     //构造函数
     constructor(
         address _owner,
@@ -71,7 +69,7 @@ contract StakingRewards is ReentrancyGuard, Pausable {
         return _balances[account];
     }
 
-    //  	
+    //得到最后一个奖励时间  	
     function lastTimeRewardApplicable() public view returns (uint256) {
         return block.timestamp < periodFinish ? block.timestamp : periodFinish;
     }
@@ -94,7 +92,7 @@ contract StakingRewards is ReentrancyGuard, Pausable {
 	}
 	else { //计算定期存款收益
 	    //定期质押的有加权,质押时间为1年的加权2.5倍,质押最短时间的加权1.1倍,中间的则根据时间平均增加权重,从[1.1,2.5]之间
-        uint256 value = _balances[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
+            uint256 value = _balances[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
 
 	    //计算对应的收益权重
 	    uint256 DayWards = ((2.5 - 1.1) * userLockTime[msg.sender] * value) / 365;   	 
@@ -104,7 +102,6 @@ contract StakingRewards is ReentrancyGuard, Pausable {
 	}
     }
 
-    //
     function getRewardForDuration() external view returns (uint256) {
         return rewardRate.mul(rewardsDuration);
     }
@@ -139,21 +136,21 @@ contract StakingRewards is ReentrancyGuard, Pausable {
 
     //用户销户 	
     function exit() external {
-	    withdraw(_balances[msg.sender]);
+	withdraw(_balances[msg.sender]);
         getReward(0); //计算活期收益
-	    getReward(1); //计算定期收益
+	getReward(1); //计算定期收益
     }    
 
     //mode为1是活期存款，mode为2是定期存款 
     modifier updateReward(address account, uint mode) {
-	    // mode为1是活期存款, mode为2是定期存款
-	    require(mode == 1 || mode == 2, "mode error!!!"); 
+	// mode为1是活期存款, mode为2是定期存款
+	require(mode == 1 || mode == 2, "mode error!!!"); 
         rewardPerTokenStored = rewardPerToken();
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
 	        rewards[account] = earned(account, mode);
 	        userRewardPerTokenPaid[account] = rewardPerTokenStored;
         }
-	    _;
+	_;
     }
 }
