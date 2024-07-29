@@ -145,16 +145,6 @@ contract stake_new is Ownable, Pausable {
         // 存款时间>7  
         require(lockDays >= 7 && lockDays <= 365, "stake amount error");
 
-        // mapping(address => bytes32[]) _userLockDepositIds;   //通过地址来查询用户拥有哪些定期存款
-        // mapping(bytes32 => _depositInfo) _LockDepositsInfos; //定期存款信息
-
-    /*  _stakeToken.transferFrom(msg.sender, address(this), amount); 
-        uint256 currenTotalRewardPerShare = getRewardPerShare();
-        _lastAddUpReward[msg.sender] += (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _shares[msg.sender];
-        _shares[msg.sender] += amount;
-        updateTotalShare(amount, 1);
-        _lastAddUpRewardPerShare[msg.sender] = currenTotalRewardPerShare;      
-    */
         // 转账额度到合约
         _stakeToken.transferFrom(msg.sender, address(this), amount); 
 
@@ -198,25 +188,6 @@ contract stake_new is Ownable, Pausable {
     //1、该笔定期存款额度要够
     //2、该笔定期存款要到期
     function unStakeLockDeposit(uint256 amount, bytes32 depositId) external whenNotPaused {
-        // mapping(address => bytes32[]) _userLockDepositIds;  //通过地址来查询用户拥有哪些定期存款
-        // mapping(bytes32 => _depositInfo) _lockDepositsInfos;  //定期存款信息 
-
-        /* 
-            struct _depositInfo { // 存款信息
-                uint256 amount;     //存款数额 
-                uint256 lockDays;   //存款天数
-                uint256 endTime;  //到期时间
-            } 
-        */
-
-    /*    require(amount <= _shares[msg.sender], "UNSTAKE_AMOUNT_MUST_LESS_SHARES");
-        _stakeToken.transferFrom(address(this), msg.sender, amount); 
-        uint256 currenTotalRewardPerShare = getRewardPerShare();
-        _lastAddUpReward[msg.sender] +=  (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _shares[msg.sender];
-        _shares[msg.sender] -= amount;
-        updateTotalShare(amount, 2);
-        _lastAddUpRewardPerShare[msg.sender] = currenTotalRewardPerShare; */
-        
         //存款余额要够
         _depositInfo memory info = _lockDepositsInfos[depositId];
 
