@@ -23,6 +23,9 @@ contract stake_new is Ownable, Pausable {
 
     //每分钟产出奖励数量
     uint256 _rewardPerMin;
+    //多少个奖励能够对换一个代币
+    uint256 coefficient;
+
     //每份额累计总奖励
     uint256 _addUpRewardPerShare;
     //总挖矿奖励数量
@@ -136,13 +139,21 @@ contract stake_new is Ownable, Pausable {
 
         //更新单份额累计收益
         uint256 currenTotalRewardPerShare = getRewardPerShare();
+
         _lastAddUpReward[msg.sender] +=  (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _virtualShares[msg.sender];
         
         _flexibleShares[msg.sender] -= amount;
         _virtualShares[msg.sender] -= amount;
 
         updateTotalShare(amount, amount, 2);
+
         _lastAddUpRewardPerShare[msg.sender] = currenTotalRewardPerShare;
+
+        //计算对应的利息
+        uint256 interest = (currenTotalRewardPerShare * amount) / coefficient;  
+
+        //转账利息给用户
+        withdraw(interest);
     }
 
     //质押定期存款
@@ -202,12 +213,12 @@ contract stake_new is Ownable, Pausable {
         require(amount <= info.amount, "amount is not enough!");
 
         //定期存款要到期才能取出
-        require(block.timestamp > info.endTime, "lock time");
+        require(block.timestamp > info.endTime, "lock time is not enough!");
 
         // 合约token转移到用户 
         _stakeToken.transferFrom(address(this), msg.sender, amount); 
 
-        // 
+        // 更新每单位收益
         uint256 currenTotalRewardPerShare = getRewardPerShare();
         
         //更新用户累计收益
@@ -215,8 +226,10 @@ contract stake_new is Ownable, Pausable {
         
         //用户定期账户额度减少 
         _lockShares[msg.sender] -= amount;
+        
         //用户账户虚拟额度减少                    1.1-2.5之间的数字，即权重  
         uint256 virtualMmount = amount * (_depositRate[info.lockDays] / 100000);
+
         //账户虚拟额度减少
         _virtualShares[msg.sender] -= virtualMmount;
 
@@ -224,7 +237,13 @@ contract stake_new is Ownable, Pausable {
         updateTotalShare(amount, virtualMmount, 2);
 
         //更新每份额累计已产出奖励
-        _lastAddUpRewardPerShare[msg.sender] = currenTotalRewardPerShare;         
+        _lastAddUpRewardPerShare[msg.sender] = currenTotalRewardPerShare;
+
+        //计算对应的利息
+        uint256 interest = (currenTotalRewardPerShare * virtualMmount) / coefficient;  
+
+        //转账利息给用户
+        withdraw(interest);         
     }
 
     //更新质押份额,【内部调用/合约创建者/不需要支付】
@@ -236,6 +255,7 @@ contract stake_new is Ownable, Pausable {
         _lastAddUpRewardPerShareAll = getRewardPerShare();
         //更新最新收益时间 
         _lastBlockTime = block.timestamp;
+
         if (operType == 1) {
             // 实际总分额
             _totalShares += amount;
@@ -275,7 +295,7 @@ contract stake_new is Ownable, Pausable {
     /// @notice 1. 计算截至到当前的累计获得奖励
     /// @notice 2. _amount必须<=(累计获得奖励-已提现奖励)
     /// @notice 3. 提现，提现需要先增加数据，再进行提现操作
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) internal {
         //用户收益余额要足够
         require(amount <= getWithdrawdReward(msg.sender), "WITHDRAW_AMOUNT_LESS_ADDUPREWARD");
         //更新用户收益记录
