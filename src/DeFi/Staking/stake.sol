@@ -38,8 +38,11 @@ contract stake_new is Ownable, Pausable {
     //最近一次（如果没有最近一次则是首次）每份额累计奖励
     uint256 _lastAddUpRewardPerShareAll;
 
-    //某地址的质押份额
-    mapping(address => uint256) private _shares;
+    //某地址的活期质押份额
+    mapping(address => uint256) private _flexibleShares;
+
+    //某地址的定期质押份额
+    mapping(address => uint256) private _lockShares;
 
     //某地址的虚拟质押份额
     mapping(address => uint256) private _virtualShares;
@@ -99,16 +102,17 @@ contract stake_new is Ownable, Pausable {
     /// @notice 2. 增加msg.sender等量的质押份额
     /// @notice 3. 计算此时每份额累计总产出奖励
     function stakeFlexibleDeposit(uint256 amount) external whenNotPaused {
+        //活期额度转账给合约
         _stakeToken.transferFrom(msg.sender, address(this), amount); 
 
         //更新单份额累计收益
         uint256 currenTotalRewardPerShare = getRewardPerShare();
 
         //更新用户累计收益
-        _lastAddUpReward[msg.sender] += (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _shares[msg.sender];
-        
-        //用户份额增加
-        _shares[msg.sender] += amount;
+        _lastAddUpReward[msg.sender] += (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _virtualShares[msg.sender];
+
+        //用户活期份额增加
+        _flexibleShares[msg.sender] += amount;
 
         //用户虚拟份额增加()
         _virtualShares[msg.sender] += amount;
@@ -124,14 +128,17 @@ contract stake_new is Ownable, Pausable {
     /// @notice 1. _amount必须<=已经质押的份额
     /// @notice 4. 记录此时msg.sender已经产出的总奖励
     function unStakeFlexibleDeposit(uint256 amount) external whenNotPaused {
-        require(amount <= _shares[msg.sender], "UNSTAKE_AMOUNT_MUST_LESS_SHARES");
+        //用户活期质押额度要够
+        require(amount <= _flexibleShares[msg.sender], "UNSTAKE_AMOUNT_MUST_LESS_SHARES");
+
+        //合约金额转账给用户
         _stakeToken.transferFrom(address(this), msg.sender, amount); 
 
         //更新单份额累计收益
         uint256 currenTotalRewardPerShare = getRewardPerShare();
-        _lastAddUpReward[msg.sender] +=  (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _shares[msg.sender];
+        _lastAddUpReward[msg.sender] +=  (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _virtualShares[msg.sender];
         
-        _shares[msg.sender] -= amount;
+        _flexibleShares[msg.sender] -= amount;
         _virtualShares[msg.sender] -= amount;
 
         updateTotalShare(amount, amount, 2);
@@ -155,7 +162,7 @@ contract stake_new is Ownable, Pausable {
         _lastAddUpReward[msg.sender] += (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _virtualShares[msg.sender];        
 
         //用户账户额度增加
-        _shares[msg.sender] += amount;
+        _lockShares[msg.sender] += amount;
         
         //用户虚拟账户额度增加                1.1-2.5之间的数字，即权重
         uint256 virtualMmount = amount * (_depositRate[lockDays] / 100000);
@@ -206,8 +213,8 @@ contract stake_new is Ownable, Pausable {
         //更新用户累计收益
         _lastAddUpReward[msg.sender] +=  (currenTotalRewardPerShare - _lastAddUpRewardPerShare[msg.sender]) * _virtualShares[msg.sender];
         
-        //用户账户额度减少 
-        _shares[msg.sender] -= amount;
+        //用户定期账户额度减少 
+        _lockShares[msg.sender] -= amount;
         //用户账户虚拟额度减少                    1.1-2.5之间的数字，即权重  
         uint256 virtualMmount = amount * (_depositRate[info.lockDays] / 100000);
         //账户虚拟额度减少
@@ -292,8 +299,18 @@ contract stake_new is Ownable, Pausable {
         return getAddupReward(msg.sender);
     }
 
-    //获取用户质押份额,【外部调用/所有人/不需要支付/只读】
-    function getShare() external view returns(uint256) {
-        return _shares[msg.sender];
+    //获取用户活期质押份额,【外部调用/所有人/不需要支付/只读】
+    function getflexibleShare() external view returns(uint256) {
+        return _flexibleShares[msg.sender];
     }
+
+    //获取用户定期质押份额,【外部调用/所有人/不需要支付/只读】
+    function getLockShare() external view returns(uint256) {
+        return _lockShares[msg.sender];
+    }
+
+    //获取用户总质押份额,【外部调用/所有人/不需要支付/只读】
+    function getTotalShare() external view returns(uint256) {
+        return _flexibleShares[msg.sender] + _lockShares[msg.sender];
+    }    
 }
